@@ -1,0 +1,288 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidAttr(v) {
+      return v is int && v >= 0 && v <= 99;
+    }
+
+    function isValidPlayerProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.playerName is string && data.playerName.size() >= 1 && data.playerName.size() <= 40 &&
+             data.position is string && data.position.size() >= 1 && data.position.size() <= 20 &&
+             data.gradYear is int && data.gradYear >= 2025 && data.gradYear <= 2040 &&
+             data.currentLevel is int && data.currentLevel >= 1 && data.currentLevel <= 6 &&
+             data.xp is int && data.xp >= 0 && data.xp <= 1000000 &&
+             data.streakDays is int && data.streakDays >= 0 && data.streakDays <= 5000 &&
+             data.dailyAffirmation is string && data.dailyAffirmation.size() >= 1 && data.dailyAffirmation.size() <= 220 &&
+             data.assignedFocus is string && data.assignedFocus.size() >= 1 && data.assignedFocus.size() <= 100 &&
+             data.weeklyGoal is string && data.weeklyGoal.size() >= 1 && data.weeklyGoal.size() <= 200 &&
+             data.fatigueLevel in ['FRESH', 'MODERATE', 'TIRED'] &&
+             data.tryoutReadiness is int && data.tryoutReadiness >= 0 && data.tryoutReadiness <= 100 &&
+             isValidAttr(data.shooting) &&
+             isValidAttr(data.ballHandling) &&
+             isValidAttr(data.finishing) &&
+             isValidAttr(data.defense) &&
+             isValidAttr(data.courtVision) &&
+             isValidAttr(data.confidence) &&
+             isValidAttr(data.leadership) &&
+             isValidAttr(data.weakHand) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidWorkoutLog(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.dayKey is string && data.dayKey.size() >= 1 && data.dayKey.size() <= 20 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             data.focusArea is string && data.focusArea.size() >= 1 && data.focusArea.size() <= 60 &&
+             data.durationMinutes is int && data.durationMinutes >= 1 && data.durationMinutes <= 180 &&
+             data.drillsCompleted is int && data.drillsCompleted >= 0 && data.drillsCompleted <= 20 &&
+             data.totalDrills is int && data.totalDrills >= 1 && data.totalDrills <= 20 &&
+             data.xpEarned is int && data.xpEarned >= 0 && data.xpEarned <= 2000 &&
+             data.rpeFatigue is int && data.rpeFatigue >= 1 && data.rpeFatigue <= 10 &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 300)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidShotZoneStat(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.zoneName is string && data.zoneName.size() >= 1 && data.zoneName.size() <= 50 &&
+             data.makes is int && data.makes >= 0 && data.makes <= 100000 &&
+             data.attempts is int && data.attempts >= 0 && data.attempts <= 100000 &&
+             data.makes <= data.attempts &&
+             data.sessionMakes is int && data.sessionMakes >= 0 && data.sessionMakes <= 10000 &&
+             data.sessionAttempts is int && data.sessionAttempts >= 0 && data.sessionAttempts <= 10000 &&
+             data.sessionMakes <= data.sessionAttempts &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidMindsetMission(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 40 &&
+             data.completed is bool &&
+             data.targetCount is int && data.targetCount >= 1 && data.targetCount <= 50 &&
+             data.currentCount is int && data.currentCount >= 0 && data.currentCount <= 50 &&
+             data.xpReward is int && data.xpReward >= 10 && data.xpReward <= 500 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCoachObservation(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.authorRole in ['PARENT', 'PLAYER', 'COACH_IQ'] &&
+             data.focusTag is string && data.focusTag.size() >= 1 && data.focusTag.size() <= 40 &&
+             data.note is string && data.note.size() >= 1 && data.note.size() <= 500 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidScheduleDay(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.dayIndex is int && data.dayIndex >= 0 && data.dayIndex <= 6 &&
+             data.dayLabel is string && data.dayLabel.size() >= 1 && data.dayLabel.size() <= 20 &&
+             data.focusTitle is string && data.focusTitle.size() >= 1 && data.focusTitle.size() <= 80 &&
+             data.durationMinutes is int && data.durationMinutes >= 0 && data.durationMinutes <= 120 &&
+             data.schoolLoad in ['NONE', 'PRACTICE', 'GAME', 'REST'] &&
+             data.completedThisWeek is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll([
+                         'userId', 'playerName', 'position', 'gradYear', 'currentLevel', 'xp',
+                         'streakDays', 'dailyAffirmation', 'assignedFocus', 'weeklyGoal',
+                         'fatigueLevel', 'tryoutReadiness', 'shooting', 'ballHandling',
+                         'finishing', 'defense', 'courtVision', 'confidence', 'leadership',
+                         'weakHand', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'playerName', 'position', 'gradYear', 'currentLevel', 'xp',
+                         'streakDays', 'dailyAffirmation', 'assignedFocus', 'weeklyGoal',
+                         'fatigueLevel', 'tryoutReadiness', 'shooting', 'ballHandling',
+                         'finishing', 'defense', 'courtVision', 'confidence', 'leadership',
+                         'weakHand', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidPlayerProfile(incoming());
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidPlayerProfile(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'playerName', 'position', 'gradYear', 'currentLevel', 'xp',
+                         'streakDays', 'dailyAffirmation', 'assignedFocus', 'weeklyGoal',
+                         'fatigueLevel', 'tryoutReadiness', 'shooting', 'ballHandling',
+                         'finishing', 'defense', 'courtVision', 'confidence', 'leadership',
+                         'weakHand', 'updatedAt'
+                       ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /workouts/{workoutId} {
+        allow get: if isOwner(userId) && isValidId(workoutId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(workoutId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'dayKey', 'title', 'focusArea', 'durationMinutes',
+                           'drillsCompleted', 'totalDrills', 'xpEarned', 'rpeFatigue',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'dayKey', 'title', 'focusArea', 'durationMinutes',
+                           'drillsCompleted', 'totalDrills', 'xpEarned', 'rpeFatigue', 'notes',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidWorkoutLog(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(workoutId) &&
+                         isValidWorkoutLog(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'notes', 'rpeFatigue', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(workoutId);
+      }
+
+      match /shotZones/{zoneId} {
+        allow get: if isOwner(userId) && isValidId(zoneId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(zoneId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'zoneName', 'makes', 'attempts',
+                           'sessionMakes', 'sessionAttempts', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'zoneName', 'makes', 'attempts',
+                           'sessionMakes', 'sessionAttempts', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidShotZoneStat(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(zoneId) &&
+                         isValidShotZoneStat(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'makes', 'attempts', 'sessionMakes', 'sessionAttempts', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(zoneId);
+      }
+
+      match /mindsetMissions/{missionId} {
+        allow get: if isOwner(userId) && isValidId(missionId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(missionId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'title', 'category', 'completed',
+                           'targetCount', 'currentCount', 'xpReward', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'title', 'category', 'completed',
+                           'targetCount', 'currentCount', 'xpReward', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidMindsetMission(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(missionId) &&
+                         isValidMindsetMission(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'completed', 'currentCount', 'title', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(missionId);
+      }
+
+      match /observations/{observationId} {
+        allow get: if isOwner(userId) && isValidId(observationId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(observationId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'authorRole', 'focusTag', 'note', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'authorRole', 'focusTag', 'note', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidCoachObservation(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(observationId) &&
+                         isValidCoachObservation(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'focusTag', 'note', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(observationId);
+      }
+
+      match /schedule/{dayId} {
+        allow get: if isOwner(userId) && isValidId(dayId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(dayId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'dayIndex', 'dayLabel', 'focusTitle', 'durationMinutes',
+                           'schoolLoad', 'completedThisWeek', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'dayIndex', 'dayLabel', 'focusTitle', 'durationMinutes',
+                           'schoolLoad', 'completedThisWeek', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidScheduleDay(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(dayId) &&
+                         isValidScheduleDay(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'focusTitle', 'durationMinutes', 'schoolLoad', 'completedThisWeek', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(dayId);
+      }
+    }
+  }
+}

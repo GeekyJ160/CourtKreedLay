@@ -1,0 +1,163 @@
+{
+  "entities": {
+    "PlayerProfile": {
+      "title": "PlayerProfile",
+      "description": "Private player profile, 8 attribute ratings, progression level, XP, and parent-coach targets.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Authenticated Firebase UID" },
+        "playerName": { "type": "string", "description": "Player display name" },
+        "position": { "type": "string", "description": "Combo guard position label" },
+        "gradYear": { "type": "integer", "description": "Estimated graduation year" },
+        "currentLevel": { "type": "integer", "description": "Evolution level 1..6" },
+        "xp": { "type": "integer", "description": "Total earned XP" },
+        "streakDays": { "type": "integer", "description": "Consecutive training days" },
+        "dailyAffirmation": { "type": "string", "description": "Active mindset affirmation" },
+        "assignedFocus": { "type": "string", "description": "Parent or AI assigned focus" },
+        "weeklyGoal": { "type": "string", "description": "Current weekly goal" },
+        "fatigueLevel": { "type": "string", "enum": ["FRESH", "MODERATE", "TIRED"] },
+        "tryoutReadiness": { "type": "integer", "description": "Tryout readiness percentage 0..100" },
+        "shooting": { "type": "integer" },
+        "ballHandling": { "type": "integer" },
+        "finishing": { "type": "integer" },
+        "defense": { "type": "integer" },
+        "courtVision": { "type": "integer" },
+        "confidence": { "type": "integer" },
+        "leadership": { "type": "integer" },
+        "weakHand": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": [
+        "userId", "playerName", "position", "gradYear", "currentLevel", "xp",
+        "streakDays", "dailyAffirmation", "assignedFocus", "weeklyGoal",
+        "fatigueLevel", "tryoutReadiness", "shooting", "ballHandling",
+        "finishing", "defense", "courtVision", "confidence", "leadership",
+        "weakHand", "createdAt", "updatedAt"
+      ]
+    },
+    "WorkoutLog": {
+      "title": "WorkoutLog",
+      "description": "Completed guided workout log entry.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "dayKey": { "type": "string" },
+        "title": { "type": "string" },
+        "focusArea": { "type": "string" },
+        "durationMinutes": { "type": "integer" },
+        "drillsCompleted": { "type": "integer" },
+        "totalDrills": { "type": "integer" },
+        "xpEarned": { "type": "integer" },
+        "rpeFatigue": { "type": "integer" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId", "dayKey", "title", "focusArea", "durationMinutes",
+        "drillsCompleted", "totalDrills", "xpEarned", "rpeFatigue",
+        "createdAt", "updatedAt"
+      ]
+    },
+    "ShotZoneStat": {
+      "title": "ShotZoneStat",
+      "description": "Cumulative and current-session makes and attempts for a specific court zone.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "zoneName": { "type": "string" },
+        "makes": { "type": "integer" },
+        "attempts": { "type": "integer" },
+        "sessionMakes": { "type": "integer" },
+        "sessionAttempts": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId", "zoneName", "makes", "attempts",
+        "sessionMakes", "sessionAttempts", "createdAt", "updatedAt"
+      ]
+    },
+    "MindsetMission": {
+      "title": "MindsetMission",
+      "description": "Weekly Mamba Mindset / Fearless Player confidence and leadership mission.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "targetCount": { "type": "integer" },
+        "currentCount": { "type": "integer" },
+        "xpReward": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId", "title", "category", "completed",
+        "targetCount", "currentCount", "xpReward", "createdAt", "updatedAt"
+      ]
+    },
+    "CoachObservation": {
+      "title": "CoachObservation",
+      "description": "Parent/Coach observation, courageous-decision log, or AI Coach note.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "authorRole": { "type": "string", "enum": ["PARENT", "PLAYER", "COACH_IQ"] },
+        "focusTag": { "type": "string" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "authorRole", "focusTag", "note", "createdAt", "updatedAt"]
+    },
+    "ScheduleDay": {
+      "title": "ScheduleDay",
+      "description": "Weekly training schedule day configuration and workload status.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "dayIndex": { "type": "integer" },
+        "dayLabel": { "type": "string" },
+        "focusTitle": { "type": "string" },
+        "durationMinutes": { "type": "integer" },
+        "schoolLoad": { "type": "string", "enum": ["NONE", "PRACTICE", "GAME", "REST"] },
+        "completedThisWeek": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId", "dayIndex", "dayLabel", "focusTitle", "durationMinutes",
+        "schoolLoad", "completedThisWeek", "createdAt", "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/PlayerProfile" },
+      "description": "Private player profile and ratings."
+    },
+    "/users/{userId}/workouts/{workoutId}": {
+      "schema": { "$ref": "#/entities/WorkoutLog" },
+      "description": "Completed guided workouts."
+    },
+    "/users/{userId}/shotZones/{zoneId}": {
+      "schema": { "$ref": "#/entities/ShotZoneStat" },
+      "description": "Per-zone shot tracking statistics."
+    },
+    "/users/{userId}/mindsetMissions/{missionId}": {
+      "schema": { "$ref": "#/entities/MindsetMission" },
+      "description": "Weekly Fearless Player mindset challenges."
+    },
+    "/users/{userId}/observations/{observationId}": {
+      "schema": { "$ref": "#/entities/CoachObservation" },
+      "description": "Parent/coach observations and player courage notes."
+    },
+    "/users/{userId}/schedule/{dayId}": {
+      "schema": { "$ref": "#/entities/ScheduleDay" },
+      "description": "Weekly training schedule days."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Court IQ",
+  "description": "Personalized basketball training, player DNA film study, shot lab, confidence missions, and AI coach for combo guard development.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Court IQ</string>
+    <string name="program_name">HER GAME</string>
+    <string name="tagline">Train smarter. Play fearless.</string>
+    <string name="sign_in_with_google">Sign in with Google</string>
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_workouts">Workouts</string>
+    <string name="nav_shot_lab">Shot Lab</string>
+    <string name="nav_coach">Coach</string>
+</resources>
