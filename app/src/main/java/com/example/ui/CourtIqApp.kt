@@ -1,7 +1,6 @@
 package com.example.ui
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -16,8 +15,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.R
 import com.example.data.CoachIqAiRepository
 import com.example.data.CourtIqRepository
+import com.example.data.LocalCourtIqStore
 import com.example.data.LocalShotLabStore
-import com.example.firebase.attemptAutoSignIn
 import com.example.firebase.authStateFlow
 import com.example.firebase.signOut
 import com.example.viewmodel.CourtIqViewModel
@@ -35,47 +34,31 @@ fun CourtIqApp(auth: FirebaseAuth = Firebase.auth) {
     val currentUser by auth.authStateFlow()
         .collectAsStateWithLifecycle(initialValue = auth.currentUser)
 
-    LaunchedEffect(Unit) {
-        if (auth.currentUser == null) {
-            attemptAutoSignIn(
-                context = context,
-                credentialManager = credentialManager,
-                onAuthSuccess = {},
-                onUnauthenticated = {},
-                scope = scope
-            )
-        }
-    }
-
     val user = currentUser
-    if (user == null) {
-        AuthScreen(onAuthSuccess = {})
-    } else {
-        key(user.uid) {
-            AuthenticatedCourtIqHost(
-                currentUserId = user.uid,
-                userDisplayName = user.displayName,
-                userEmail = user.email,
-                onSignOut = {
-                    signOut(
-                        credentialManager = credentialManager,
-                        scope = scope
-                    )
-                }
-            )
-        }
+    key(user?.uid ?: "local") {
+        AuthenticatedCourtIqHost(
+            currentUserId = user?.uid,
+            userDisplayName = user?.displayName,
+            userEmail = user?.email,
+            onSignOut = {
+                signOut(
+                    credentialManager = credentialManager,
+                    scope = scope
+                )
+            }
+        )
     }
 }
 
 @Composable
 private fun AuthenticatedCourtIqHost(
-    currentUserId: String,
+    currentUserId: String?,
     userDisplayName: String?,
     userEmail: String?,
     onSignOut: () -> Unit,
 ) {
     val viewModel: CourtIqViewModel = viewModel(
-        key = currentUserId,
+        key = currentUserId ?: "local",
         factory = viewModelFactory {
             initializer {
                 val app = checkNotNull(this[APPLICATION_KEY]) {
@@ -86,7 +69,8 @@ private fun AuthenticatedCourtIqHost(
                 CourtIqViewModel(
                     repository = CourtIqRepository(db),
                     aiRepository = CoachIqAiRepository(),
-                    localShotLabStore = LocalShotLabStore(app, currentUserId),
+                    localCourtIqStore = LocalCourtIqStore(app),
+                    localShotLabStore = LocalShotLabStore(app, currentUserId ?: "local"),
                     currentUserId = currentUserId,
                     initialDisplayName = userDisplayName
                 )

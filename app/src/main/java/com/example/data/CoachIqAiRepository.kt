@@ -7,6 +7,7 @@ import com.example.model.MindsetMission
 import com.example.model.PlayerProfile
 import com.example.model.ShotZoneStat
 import com.example.model.careerAccuracyPercent
+import com.example.ui.aggregatePlayerDnaFromShotLab
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.Schema
@@ -45,6 +46,7 @@ class CoachIqAiRepository {
                     Core coaching philosophy:
                     - Reward making the RIGHT basketball decision (taking an open shot, attacking an open lane, calling for the ball, speaking up in a huddle) even when the shot misses.
                     - Emphasize controlled aggression, weak-hand confidence, close-to-midrange shooting mechanics before forcing deep range, and vocal leadership.
+                    - Directly analyze her Shot Lab numbers and Player DNA radar strengths & weaknesses when asked about shooting stats or training advice.
                     - Reference her actual player models when helpful: Caitlin Clark (range & vision), Paige Bueckers (midrange pace & composure), JuJu Watkins (attacking rim & assertiveness), Steph Curry (form & off-ball movement), Chelsea Gray (floor general passing & leadership).
                     - Keep answers concise, actionable, energizing, and age-appropriate (no clichés, clear 2–4 bullet drills or mindset cues).
                     """.trimIndent()
@@ -107,6 +109,21 @@ class CoachIqAiRepository {
         }.ifBlank { "No recent parent/player notes yet." }
 
         val fatigue = FatigueLevel.safeValueOf(profile.fatigueLevel)
+        val dna = aggregatePlayerDnaFromShotLab(shotZones)
+        val dnaAxesSummary = dna.axes.joinToString("; ") { axis ->
+            if (axis.attempts > 0) "${axis.label}: ${axis.makes}/${axis.attempts} (${axis.percentage}%)"
+            else "${axis.label}: 0/0"
+        }
+        val strengthsSummary = if (dna.strengths.isEmpty()) {
+            "Not enough Shot Lab data yet"
+        } else {
+            dna.strengths.joinToString(", ") { "${it.label} (${it.percentage}%)" }
+        }
+        val weaknessesSummary = if (dna.weaknesses.isEmpty()) {
+            "Not enough Shot Lab data yet"
+        } else {
+            dna.weaknesses.joinToString(", ") { "${it.label} (${it.percentage}% - drill: ${it.drillTip})" }
+        }
 
         return """
             Player: ${profile.playerName} (${profile.position}, Level ${profile.currentLevel}, XP ${profile.xp}, Readiness ${profile.tryoutReadiness}%)
@@ -116,7 +133,11 @@ class CoachIqAiRepository {
             Parent Assigned Focus: ${profile.assignedFocus}
             Weekly Goal: ${profile.weeklyGoal}
             Fearless Challenges Completed: $completedMissions / ${missions.size}
-            Shot Lab Stats: $shotSummary
+            Player DNA Radar Archetype Match: ${dna.matchedPro.name} (${dna.matchedPro.archetype}) — ${dna.matchReason}
+            Player DNA Radar Axes: $dnaAxesSummary
+            Player DNA Top Strengths: $strengthsSummary
+            Player DNA Growth Weaknesses: $weaknessesSummary
+            Shot Lab Zone Breakdown: $shotSummary
             Recent Observations: $recentNotes
         """.trimIndent()
     }
@@ -124,14 +145,28 @@ class CoachIqAiRepository {
     fun streamCoachResponse(
         userMessage: String,
         playerContext: String,
+        recentHistory: List<CoachChatMessage> = emptyList(),
     ): Flow<String> = flow {
-        val prompt = """
-            Current Player Context:
-            $playerContext
+        val historyBlock = recentHistory
+            .filter { it.id != "welcome" }
+            .takeLast(6)
+            .joinToString("\n") { msg ->
+                val speaker = if (msg.fromCoach) "Coach IQ" else "Player/Parent"
+                "$speaker: ${msg.text}"
+            }
 
-            Player / Parent Question:
-            $userMessage
-        """.trimIndent()
+        val prompt = buildString {
+            appendLine("Current Player & Shot Lab DNA Context:")
+            appendLine(playerContext)
+            if (historyBlock.isNotBlank()) {
+                appendLine()
+                appendLine("Recent Conversation:")
+                appendLine(historyBlock)
+            }
+            appendLine()
+            appendLine("Player / Parent Question:")
+            append(userMessage)
+        }
 
         val accumulated = StringBuilder()
         try {

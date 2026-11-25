@@ -68,6 +68,7 @@ const val ROUTE_DASHBOARD = "dashboard"
 const val ROUTE_WORKOUTS = "workouts"
 const val ROUTE_SHOT_LAB = "shot_lab"
 const val ROUTE_COACH = "coach"
+const val ROUTE_PLAYER_DNA = "player_dna"
 
 private data class MainTab(
     val route: String,
@@ -255,7 +256,8 @@ fun MainScreen(
                                             selectedCoachSubTab = CoachSubTab.MINDSET
                                             navigateToRoute(ROUTE_COACH)
                                         },
-                                        onOpenShotLab = { navigateToRoute(ROUTE_SHOT_LAB) }
+                                        onOpenShotLab = { navigateToRoute(ROUTE_SHOT_LAB) },
+                                        onOpenPlayerDna = { navigateToRoute(ROUTE_PLAYER_DNA) }
                                     )
                                 }
                                 composable(ROUTE_WORKOUTS) {
@@ -263,7 +265,9 @@ fun MainScreen(
                                         bundle = bundle,
                                         onStartWorkout = { program ->
                                             viewModel.startWorkout(program, null)
-                                        }
+                                        },
+                                        onOpenShotLab = { navigateToRoute(ROUTE_SHOT_LAB) },
+                                        onOpenPlayerDna = { navigateToRoute(ROUTE_PLAYER_DNA) }
                                     )
                                 }
                                 composable(ROUTE_SHOT_LAB) {
@@ -275,7 +279,16 @@ fun MainScreen(
                                         onRecordBatch = { zone, makes, attempts ->
                                             viewModel.recordBatchShots(zone, makes, attempts)
                                         },
-                                        onResetSession = { viewModel.resetShotSession() }
+                                        onResetSession = { viewModel.resetShotSession() },
+                                        onOpenPlayerDna = { navigateToRoute(ROUTE_PLAYER_DNA) }
+                                    )
+                                }
+                                composable(ROUTE_PLAYER_DNA) {
+                                    PlayerDnaProfileScreen(
+                                        bundle = bundle,
+                                        onBack = { navController.popBackStack() },
+                                        onOpenShotLab = { navigateToRoute(ROUTE_SHOT_LAB) },
+                                        onStartRecommendedDrill = { navigateToRoute(ROUTE_WORKOUTS) }
                                     )
                                 }
                                 composable(ROUTE_COACH) {

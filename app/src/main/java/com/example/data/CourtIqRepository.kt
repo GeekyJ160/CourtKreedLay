@@ -321,12 +321,15 @@ class CourtIqRepository(
                 else -> FatigueLevel.FRESH.name
             }
 
+            val nextXp = (profile.xp + earnedXp).coerceIn(0, 1_000_000)
+            val nextLevel = ProgressionSystem.resolveLevel(profile.currentLevel, nextXp)
             val batch = db.batch()
             batch.set(workoutRef, payload)
             batch.update(
                 userRef,
                 mapOf(
-                    "xp" to (profile.xp + earnedXp).coerceIn(0, 1_000_000),
+                    "xp" to nextXp,
+                    "currentLevel" to nextLevel,
                     "streakDays" to (profile.streakDays + 1).coerceIn(0, 5000),
                     "weakHand" to (profile.weakHand + 1).coerceIn(0, 99),
                     "ballHandling" to (profile.ballHandling + 1).coerceIn(0, 99),
@@ -361,6 +364,7 @@ class CourtIqRepository(
         zone: CourtZoneDef,
         addMakes: Int,
         addAttempts: Int,
+        currentProfile: PlayerProfile? = null,
     ): Result<Unit> {
         val docPath = "users/$userId/shotZones/${zone.id}"
         return try {
@@ -368,9 +372,10 @@ class CourtIqRepository(
             require(addAttempts > 0 && addMakes in 0..addAttempts) {
                 "Invalid shot count: makes=$addMakes, attempts=$addAttempts"
             }
-            val zoneRef = db.collection("users").document(uid)
-                .collection("shotZones").document(zone.id)
+            val userRef = db.collection("users").document(uid)
+            val zoneRef = userRef.collection("shotZones").document(zone.id)
             val now = FieldValue.serverTimestamp()
+            val xpGain = ProgressionSystem.computeShotXpGain(addMakes, addAttempts)
 
             db.runTransaction { tx ->
                 val snap = tx.get(zoneRef)
@@ -404,6 +409,18 @@ class CourtIqRepository(
                             "attempts" to nextAttempts,
                             "sessionMakes" to nextSessMakes,
                             "sessionAttempts" to nextSessAttempts,
+                            "updatedAt" to now,
+                        )
+                    )
+                }
+                if (currentProfile != null && xpGain > 0) {
+                    val nextXp = (currentProfile.xp + xpGain).coerceIn(0, 1_000_000)
+                    val nextLevel = ProgressionSystem.resolveLevel(currentProfile.currentLevel, nextXp)
+                    tx.update(
+                        userRef,
+                        mapOf(
+                            "xp" to nextXp,
+                            "currentLevel" to nextLevel,
                             "updatedAt" to now,
                         )
                     )
@@ -478,10 +495,13 @@ class CourtIqRepository(
                 )
             )
             if (becameCompleted && profile != null) {
+                val nextXp = (profile.xp + mission.xpReward).coerceIn(0, 1_000_000)
+                val nextLevel = ProgressionSystem.resolveLevel(profile.currentLevel, nextXp)
                 batch.update(
                     userRef,
                     mapOf(
-                        "xp" to (profile.xp + mission.xpReward).coerceIn(0, 1_000_000),
+                        "xp" to nextXp,
+                        "currentLevel" to nextLevel,
                         "confidence" to (profile.confidence + 2).coerceIn(0, 99),
                         "leadership" to (profile.leadership + 2).coerceIn(0, 99),
                         "updatedAt" to now,
@@ -523,10 +543,13 @@ class CourtIqRepository(
                 )
             )
             if (nextCompleted && profile != null) {
+                val nextXp = (profile.xp + mission.xpReward).coerceIn(0, 1_000_000)
+                val nextLevel = ProgressionSystem.resolveLevel(profile.currentLevel, nextXp)
                 batch.update(
                     userRef,
                     mapOf(
-                        "xp" to (profile.xp + mission.xpReward).coerceIn(0, 1_000_000),
+                        "xp" to nextXp,
+                        "currentLevel" to nextLevel,
                         "confidence" to (profile.confidence + 1).coerceIn(0, 99),
                         "updatedAt" to now,
                     )

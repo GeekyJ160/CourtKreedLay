@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -42,6 +43,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -319,22 +321,38 @@ fun CoachIqOnlyContent(
 ) {
     var chatInput by remember { mutableStateOf("") }
     val profile = bundle.profile ?: PlayerProfile()
+    val dna = remember(bundle.shotZones) { aggregatePlayerDnaFromShotLab(bundle.shotZones) }
+    val listState = rememberLazyListState()
+    val isBusy = aiStreamState is AiStreamState.Loading || aiStreamState is AiStreamState.Streaming
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    LaunchedEffect(chatMessages.size, aiStreamState) {
+        val lastIdx = (listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
+        if (lastIdx > 0) {
+            listState.animateScrollToItem(lastIdx)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("coach_iq_chat_screen"),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        item {
-            Column(
-                modifier = Modifier.widthIn(max = 640.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
                     shape = MaterialTheme.shapes.large,
                     modifier = Modifier
+                        .widthIn(max = 640.dp)
                         .fillMaxWidth()
                         .border(1.dp, ArenaCyan.copy(alpha = 0.45f), MaterialTheme.shapes.large)
                 ) {
@@ -345,16 +363,43 @@ fun CoachIqOnlyContent(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = ArenaCyan)
                             Spacer(Modifier.width(8.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "COACH IQ · ${profile.playerName.uppercase()}",
                                     style = MaterialTheme.typography.headlineMedium,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "Personalized to your Shot Lab, ratings & parent observations",
+                                    text = "Powered by Gemini · Synced to your Player DNA & Shot Lab",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = ArenaCyan
+                                )
+                            }
+                        }
+
+                        // Live Player DNA Context Strip
+                        Surface(
+                            color = ObsidianSurfaceHigh,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("coach_iq_dna_context_strip")
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                val topStrength = dna.strengths.firstOrNull()?.let { "${it.label} (${it.percentage}%)" } ?: "Log shots to unlock"
+                                val topFocus = dna.weaknesses.firstOrNull()?.let { "${it.label} (${it.percentage}%)" } ?: "Balanced"
+                                Text(
+                                    text = "DNA ARCHETYPE: ${dna.matchedPro.name.uppercase()} · SHOT LAB ${if (dna.totalAttempts > 0) "${dna.overallPct}% (${dna.totalMakes}/${dna.totalAttempts})" else "0 SHOTS"}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ElectricVolt
+                                )
+                                Text(
+                                    text = "Strength: $topStrength · Growth Spot: $topFocus",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -432,21 +477,27 @@ fun CoachIqOnlyContent(
                         }
                     }
                 }
+            }
 
+            item {
                 val quickPrompts = listOf(
+                    "Analyze my Player DNA radar & weakest shooting spot",
+                    "Build a drill plan for my lowest Shot Lab zone",
+                    "Compare my left vs. right floor shooting numbers",
                     "I missed 4 shots in a row — how do I stay aggressive?",
-                    "Analyze my Shot Lab zones & weak hand",
-                    "Give me a 2-min pre-game confidence talk",
                     "How do I play like Paige & Caitlin in 7th grade?"
                 )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyRow(
+                    modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     items(quickPrompts) { prompt ->
                         Surface(
                             color = ObsidianSurfaceHigh,
                             shape = RoundedCornerShape(20.dp),
                             modifier = Modifier
                                 .border(1.dp, ObsidianBorder, RoundedCornerShape(20.dp))
-                                .clickable(enabled = aiStreamState !is AiStreamState.Loading && aiStreamState !is AiStreamState.Streaming) {
+                                .clickable(enabled = !isBusy) {
                                     onAskCoachIq(prompt)
                                 }
                         ) {
@@ -459,109 +510,140 @@ fun CoachIqOnlyContent(
                         }
                     }
                 }
+            }
 
-                chatMessages.forEach { msg ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = if (msg.fromCoach) Arrangement.Start else Arrangement.End
+            items(chatMessages, key = { it.id }) { msg ->
+                Row(
+                    modifier = Modifier
+                        .widthIn(max = 640.dp)
+                        .fillMaxWidth(),
+                    horizontalArrangement = if (msg.fromCoach) Arrangement.Start else Arrangement.End
+                ) {
+                    Surface(
+                        color = if (msg.fromCoach) ObsidianSurface else CourtOrange.copy(alpha = 0.22f),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .widthIn(max = 520.dp)
+                            .border(
+                                1.dp,
+                                if (msg.fromCoach) ObsidianBorder else CourtOrange.copy(alpha = 0.5f),
+                                RoundedCornerShape(16.dp)
+                            )
                     ) {
-                        Surface(
-                            color = if (msg.fromCoach) ObsidianSurface else CourtOrange.copy(alpha = 0.22f),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier
-                                .widthIn(max = 520.dp)
-                                .border(
-                                    1.dp,
-                                    if (msg.fromCoach) ObsidianBorder else CourtOrange.copy(alpha = 0.5f),
-                                    RoundedCornerShape(16.dp)
-                                )
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Text(
-                                    text = if (msg.fromCoach) "COACH IQ" else "YOU",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (msg.fromCoach) ArenaCyan else CourtOrange
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = msg.text,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                }
-
-                when (aiStreamState) {
-                    is AiStreamState.Loading -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = ArenaCyan)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Coach IQ is analyzing your game...", style = MaterialTheme.typography.bodySmall, color = ArenaCyan)
-                        }
-                    }
-                    is AiStreamState.Streaming -> {
-                        Surface(
-                            color = ObsidianSurface,
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, ArenaCyan.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Text("COACH IQ", style = MaterialTheme.typography.labelSmall, color = ArenaCyan)
-                                Spacer(Modifier.height(4.dp))
-                                Text(aiStreamState.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                            }
-                        }
-                    }
-                    is AiStreamState.Error -> {
-                        Surface(
-                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.16f),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Text(
-                                text = aiStreamState.message,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(12.dp)
+                                text = if (msg.fromCoach) "COACH IQ" else "YOU",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (msg.fromCoach) ArenaCyan else CourtOrange
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = msg.text,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
-                    else -> Unit
                 }
+            }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = chatInput,
-                        onValueChange = { if (it.length <= 400) chatInput = it },
-                        label = { Text("Ask Coach IQ anything...") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Button(
-                        onClick = {
-                            if (chatInput.isNotBlank()) {
-                                onAskCoachIq(chatInput)
-                                chatInput = ""
-                            }
-                        },
-                        enabled = aiStreamState !is AiStreamState.Loading && aiStreamState !is AiStreamState.Streaming,
+            if (aiStreamState is AiStreamState.Loading) {
+                item {
+                    Row(
                         modifier = Modifier
-                            .height(54.dp)
-                            .testTag("send_coach_iq_button"),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = ArenaCyan,
-                            contentColor = ObsidianBg
-                        )
+                            .widthIn(max = 640.dp)
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send to Coach IQ")
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = ArenaCyan)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Coach IQ is analyzing your Player DNA...", style = MaterialTheme.typography.bodySmall, color = ArenaCyan)
                     }
+                }
+            }
+
+            if (aiStreamState is AiStreamState.Streaming) {
+                item {
+                    Surface(
+                        color = ObsidianSurface,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .widthIn(max = 640.dp)
+                            .fillMaxWidth()
+                            .border(1.dp, ArenaCyan.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text("COACH IQ", style = MaterialTheme.typography.labelSmall, color = ArenaCyan)
+                            Spacer(Modifier.height(4.dp))
+                            Text(aiStreamState.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            }
+
+            if (aiStreamState is AiStreamState.Error) {
+                item {
+                    Surface(
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.16f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .widthIn(max = 640.dp)
+                            .fillMaxWidth()
+                    ) {
+                        Text(
+                            text = aiStreamState.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Pinned Chat Composer Bar
+        Surface(
+            color = ObsidianSurface,
+            tonalElevation = 4.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, ObsidianBorder)
+        ) {
+            Row(
+                modifier = Modifier
+                    .widthIn(max = 640.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = chatInput,
+                    onValueChange = { if (it.length <= 400) chatInput = it },
+                    placeholder = { Text("Ask about Shot Lab stats or Player DNA...") },
+                    maxLines = 3,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("coach_iq_chat_input")
+                )
+                Button(
+                    onClick = {
+                        if (chatInput.isNotBlank()) {
+                            onAskCoachIq(chatInput)
+                            chatInput = ""
+                        }
+                    },
+                    enabled = !isBusy && chatInput.isNotBlank(),
+                    modifier = Modifier
+                        .height(54.dp)
+                        .testTag("send_coach_iq_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ArenaCyan,
+                        contentColor = ObsidianBg
+                    )
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send to Coach IQ")
                 }
             }
         }

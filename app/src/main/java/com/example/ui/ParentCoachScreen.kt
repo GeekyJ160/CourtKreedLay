@@ -449,7 +449,7 @@ fun ParentCoachScreen(
             }
         }
 
-        // Account / Sign-Out footer
+        // Storage / Account footer
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
@@ -463,25 +463,38 @@ fun ParentCoachScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "ACCOUNT & SYNC",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = ArenaCyan
-                    )
-                    Text(
-                        text = "Signed in as ${userEmail ?: "Google User"}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    OutlinedButton(
-                        onClick = onSignOut,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("sign_out_button")
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Sign Out")
+                    if (userEmail == null) {
+                        Text(
+                            text = "ON-DEVICE STORAGE",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = ArenaCyan
+                        )
+                        Text(
+                            text = "All workouts, Shot Lab stats, Player DNA, and Coach notes are saved locally on this device — no sign-up required.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    } else {
+                        Text(
+                            text = "ACCOUNT & SYNC",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = ArenaCyan
+                        )
+                        Text(
+                            text = "Signed in as $userEmail",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        OutlinedButton(
+                            onClick = onSignOut,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("sign_out_button")
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Sign Out")
+                        }
                     }
                 }
             }

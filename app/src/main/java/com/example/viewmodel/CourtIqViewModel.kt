@@ -8,8 +8,10 @@ import com.example.data.CoachChatMessage
 import com.example.data.CoachIqAiRepository
 import com.example.data.CourtIqRepository
 import com.example.data.CourtZoneDef
+import com.example.data.LocalCourtIqStore
 import com.example.data.LocalShotLabStore
 import com.example.data.PersonalizedFocusPlan
+import com.example.data.ProgressionSystem
 import com.example.data.WorkoutProgram
 import com.example.model.AuthorRole
 import com.example.model.CoachObservation
@@ -81,8 +83,9 @@ data class ActiveWorkoutState(
 class CourtIqViewModel(
     private val repository: CourtIqRepository,
     private val aiRepository: CoachIqAiRepository,
+    private val localCourtIqStore: LocalCourtIqStore,
     private val localShotLabStore: LocalShotLabStore,
-    private val currentUserId: String,
+    private val currentUserId: String?,
     initialDisplayName: String?,
 ) : ViewModel() {
 
@@ -98,64 +101,100 @@ class CourtIqViewModel(
                 emit(UiState.Error(rootError.message ?: "Failed to load $label"))
             }
 
-    val dashboardState: StateFlow<UiState<DashboardBundle>> = combine(
-        repository.observeProfile(currentUserId).unwrapFirestoreErrors("profile"),
-        repository.observeWorkouts(currentUserId).unwrapFirestoreErrors("workouts"),
-        repository.observeShotZones(currentUserId).unwrapFirestoreErrors("shotZones"),
-        repository.observeMissions(currentUserId).unwrapFirestoreErrors("missions"),
-        repository.observeObservations(currentUserId).unwrapFirestoreErrors("observations"),
-        repository.observeSchedule(currentUserId).unwrapFirestoreErrors("schedule"),
-        localShotLabStore.shotZones,
-    ) { values ->
-        @Suppress("UNCHECKED_CAST")
-        val profileRes = values[0] as UiState<PlayerProfile?>
-        @Suppress("UNCHECKED_CAST")
-        val workoutsRes = values[1] as UiState<List<WorkoutLog>>
-        @Suppress("UNCHECKED_CAST")
-        val shotsRes = values[2] as UiState<List<ShotZoneStat>>
-        @Suppress("UNCHECKED_CAST")
-        val missionsRes = values[3] as UiState<List<MindsetMission>>
-        @Suppress("UNCHECKED_CAST")
-        val obsRes = values[4] as UiState<List<CoachObservation>>
-        @Suppress("UNCHECKED_CAST")
-        val schedRes = values[5] as UiState<List<ScheduleDay>>
-        @Suppress("UNCHECKED_CAST")
-        val localShots = values[6] as List<ShotZoneStat>
-
-        if (shotsRes is UiState.Success) {
-            localShotLabStore.seedFromCloudIfEmpty(shotsRes.data)
-        }
-
-        val firstError = listOf(profileRes, workoutsRes, shotsRes, missionsRes, obsRes, schedRes)
-            .filterIsInstance<UiState.Error>()
-            .firstOrNull()
-        if (firstError != null) {
-            firstError
-        } else if (
-            profileRes is UiState.Success &&
-            workoutsRes is UiState.Success &&
-            missionsRes is UiState.Success &&
-            obsRes is UiState.Success &&
-            schedRes is UiState.Success
-        ) {
+    val dashboardState: StateFlow<UiState<DashboardBundle>> = if (currentUserId == null) {
+        combine(
+            localCourtIqStore.profile,
+            localCourtIqStore.workouts,
+            localShotLabStore.shotZones,
+            localCourtIqStore.missions,
+            localCourtIqStore.observations,
+            localCourtIqStore.schedule,
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
             UiState.Success(
                 DashboardBundle(
-                    profile = profileRes.data,
-                    workouts = workoutsRes.data,
-                    shotZones = localShots,
-                    missions = missionsRes.data,
-                    observations = obsRes.data,
-                    schedule = schedRes.data,
+                    profile = values[0] as PlayerProfile?,
+                    workouts = values[1] as List<WorkoutLog>,
+                    shotZones = values[2] as List<ShotZoneStat>,
+                    missions = values[3] as List<MindsetMission>,
+                    observations = values[4] as List<CoachObservation>,
+                    schedule = values[5] as List<ScheduleDay>,
                 )
             )
-        } else {
-            UiState.Loading
-        }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000L),
-        initialValue = UiState.Loading
-    )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000L),
+            initialValue = UiState.Success(
+                DashboardBundle(
+                    profile = localCourtIqStore.profile.value,
+                    workouts = localCourtIqStore.workouts.value,
+                    shotZones = localShotLabStore.shotZones.value,
+                    missions = localCourtIqStore.missions.value,
+                    observations = localCourtIqStore.observations.value,
+                    schedule = localCourtIqStore.schedule.value,
+                )
+            )
+        )
+    } else {
+        combine(
+            repository.observeProfile(currentUserId).unwrapFirestoreErrors("profile"),
+            repository.observeWorkouts(currentUserId).unwrapFirestoreErrors("workouts"),
+            repository.observeShotZones(currentUserId).unwrapFirestoreErrors("shotZones"),
+            repository.observeMissions(currentUserId).unwrapFirestoreErrors("missions"),
+            repository.observeObservations(currentUserId).unwrapFirestoreErrors("observations"),
+            repository.observeSchedule(currentUserId).unwrapFirestoreErrors("schedule"),
+            localShotLabStore.shotZones,
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
+            val profileRes = values[0] as UiState<PlayerProfile?>
+            @Suppress("UNCHECKED_CAST")
+            val workoutsRes = values[1] as UiState<List<WorkoutLog>>
+            @Suppress("UNCHECKED_CAST")
+            val shotsRes = values[2] as UiState<List<ShotZoneStat>>
+            @Suppress("UNCHECKED_CAST")
+            val missionsRes = values[3] as UiState<List<MindsetMission>>
+            @Suppress("UNCHECKED_CAST")
+            val obsRes = values[4] as UiState<List<CoachObservation>>
+            @Suppress("UNCHECKED_CAST")
+            val schedRes = values[5] as UiState<List<ScheduleDay>>
+            @Suppress("UNCHECKED_CAST")
+            val localShots = values[6] as List<ShotZoneStat>
+
+            if (shotsRes is UiState.Success) {
+                localShotLabStore.seedFromCloudIfEmpty(shotsRes.data)
+            }
+
+            val firstError = listOf(profileRes, workoutsRes, shotsRes, missionsRes, obsRes, schedRes)
+                .filterIsInstance<UiState.Error>()
+                .firstOrNull()
+            if (firstError != null) {
+                firstError
+            } else if (
+                profileRes is UiState.Success &&
+                workoutsRes is UiState.Success &&
+                missionsRes is UiState.Success &&
+                obsRes is UiState.Success &&
+                schedRes is UiState.Success
+            ) {
+                UiState.Success(
+                    DashboardBundle(
+                        profile = profileRes.data,
+                        workouts = workoutsRes.data,
+                        shotZones = localShots,
+                        missions = missionsRes.data,
+                        observations = obsRes.data,
+                        schedule = schedRes.data,
+                    )
+                )
+            } else {
+                UiState.Loading
+            }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000L),
+            initialValue = UiState.Loading
+        )
+    }
 
     private val _selectedZoneId = MutableStateFlow(BasketballCurriculum.courtZones.first().id)
     val selectedZoneId: StateFlow<String> = _selectedZoneId.asStateFlow()
@@ -186,10 +225,12 @@ class CourtIqViewModel(
     private var timerJob: Job? = null
 
     init {
-        viewModelScope.launch {
-            val result = repository.ensureInitialData(currentUserId, initialDisplayName)
-            result.onFailure { e ->
-                _statusBanner.value = e.localizedMessage ?: "Failed to initialize player profile."
+        if (currentUserId != null) {
+            viewModelScope.launch {
+                val result = repository.ensureInitialData(currentUserId, initialDisplayName)
+                result.onFailure { e ->
+                    _statusBanner.value = e.localizedMessage ?: "Failed to initialize player profile."
+                }
             }
         }
     }
@@ -348,8 +389,22 @@ class CourtIqViewModel(
         val bundle = (dashboardState.value as? UiState.Success)?.data
         val profile = bundle?.profile ?: return
         timerJob?.cancel()
+        val drillsDone = current.completedDrillIds.size.coerceAtLeast(1)
+        if (currentUserId == null) {
+            localCourtIqStore.completeWorkout(
+                workout = current.program,
+                drillsCompleted = drillsDone,
+                rpeFatigue = rpeFatigue,
+                notes = notes,
+                scheduleDayId = current.scheduleDayId
+            )
+            _activeWorkout.value = current.copy(
+                isRunning = false,
+                completedWorkoutSummary = "Workout logged! +${current.program.xpReward} XP earned. Keep building your game!"
+            )
+            return
+        }
         viewModelScope.launch {
-            val drillsDone = current.completedDrillIds.size.coerceAtLeast(1)
             val result = repository.completeWorkout(
                 userId = currentUserId,
                 profile = profile,
@@ -372,82 +427,166 @@ class CourtIqViewModel(
 
     fun recordShot(zone: CourtZoneDef, made: Boolean) {
         val addMakes = if (made) 1 else 0
-        localShotLabStore.recordShots(zone = zone, addMakes = addMakes, addAttempts = 1)
+        recordBatchShots(zone = zone, makes = addMakes, attempts = 1)
+    }
+
+    fun recordBatchShots(zone: CourtZoneDef, makes: Int, attempts: Int) {
+        val currentBundle = (dashboardState.value as? UiState.Success)?.data
+        val prevProfile = currentBundle?.profile ?: PlayerProfile()
+        val prevZones = currentBundle?.shotZones ?: localShotLabStore.shotZones.value
+        val beforeProg = ProgressionSystem.evaluateProgression(prevProfile, prevZones)
+
+        localShotLabStore.recordShots(zone = zone, addMakes = makes, addAttempts = attempts)
+        val updatedZones = localShotLabStore.shotZones.value
+        val xpGain = ProgressionSystem.computeShotXpGain(makes, attempts)
+
+        val uid = currentUserId
+        if (uid == null) {
+            val (oldLevel, newLevel) = localCourtIqStore.awardShotLabXp(makes, attempts)
+            val updatedProfile = localCourtIqStore.profile.value ?: prevProfile.copy(
+                xp = prevProfile.xp + xpGain,
+                currentLevel = newLevel
+            )
+            val afterProg = ProgressionSystem.evaluateProgression(updatedProfile, updatedZones)
+            announceProgressionEvent(beforeProg, afterProg, oldLevel, newLevel, xpGain)
+            return
+        }
+
+        val predictedXp = (prevProfile.xp + xpGain).coerceIn(0, 1_000_000)
+        val predictedLevel = ProgressionSystem.resolveLevel(prevProfile.currentLevel, predictedXp)
+        val afterProg = ProgressionSystem.evaluateProgression(
+            prevProfile.copy(xp = predictedXp, currentLevel = predictedLevel),
+            updatedZones
+        )
+        announceProgressionEvent(beforeProg, afterProg, beforeProg.resolvedLevel, predictedLevel, xpGain)
+
         viewModelScope.launch {
             repository.recordShots(
-                userId = currentUserId,
+                userId = uid,
                 zone = zone,
-                addMakes = addMakes,
-                addAttempts = 1
+                addMakes = makes,
+                addAttempts = attempts,
+                currentProfile = prevProfile
             )
         }
     }
 
-    fun recordBatchShots(zone: CourtZoneDef, makes: Int, attempts: Int) {
-        localShotLabStore.recordShots(zone = zone, addMakes = makes, addAttempts = attempts)
-        viewModelScope.launch {
-            repository.recordShots(
-                userId = currentUserId,
-                zone = zone,
-                addMakes = makes,
-                addAttempts = attempts
-            )
+    private fun announceProgressionEvent(
+        before: com.example.data.ProgressionSnapshot,
+        after: com.example.data.ProgressionSnapshot,
+        oldLevel: Int,
+        newLevel: Int,
+        xpGain: Int,
+    ) {
+        val newlyUnlocked = after.badges.filter { afterBadge ->
+            afterBadge.unlocked && before.badges.none { it.id == afterBadge.id && it.unlocked }
+        }
+        when {
+            newLevel > oldLevel -> {
+                val levelTitle = BasketballCurriculum.evolutionLevels
+                    .firstOrNull { it.levelNumber == newLevel }?.title ?: "Next Tier"
+                val badgeNote = if (newlyUnlocked.isNotEmpty()) {
+                    " · Badge unlocked: ${newlyUnlocked.first().title}!"
+                } else ""
+                _statusBanner.value = "LEVEL UP! Level $newLevel ($levelTitle) · +$xpGain XP$badgeNote"
+            }
+            newlyUnlocked.isNotEmpty() -> {
+                _statusBanner.value = "Badge Unlocked: ${newlyUnlocked.first().title}! (+$xpGain XP)"
+            }
         }
     }
 
     fun resetShotSession() {
         localShotLabStore.resetSession()
         _statusBanner.value = "Session shot counters reset."
+        val uid = currentUserId ?: return
         val bundle = (dashboardState.value as? UiState.Success)?.data ?: return
         viewModelScope.launch {
-            repository.resetShotSession(currentUserId, bundle.shotZones)
+            repository.resetShotSession(uid, bundle.shotZones)
         }
     }
 
     fun incrementMission(mission: MindsetMission) {
+        val uid = currentUserId
+        if (uid == null) {
+            localCourtIqStore.incrementMission(mission)
+            return
+        }
         val profile = (dashboardState.value as? UiState.Success)?.data?.profile
         viewModelScope.launch {
-            repository.incrementMissionProgress(currentUserId, profile, mission)
+            repository.incrementMissionProgress(uid, profile, mission)
                 .onFailure { e -> _statusBanner.value = e.localizedMessage ?: "Failed to update mission." }
         }
     }
 
     fun toggleMission(mission: MindsetMission) {
+        val uid = currentUserId
+        if (uid == null) {
+            localCourtIqStore.toggleMission(mission)
+            return
+        }
         val profile = (dashboardState.value as? UiState.Success)?.data?.profile
         viewModelScope.launch {
-            repository.toggleMissionComplete(currentUserId, profile, mission)
+            repository.toggleMissionComplete(uid, profile, mission)
                 .onFailure { e -> _statusBanner.value = e.localizedMessage ?: "Failed to update mission." }
         }
     }
 
     fun addCustomMission(title: String, category: String, targetCount: Int) {
+        val uid = currentUserId
+        if (uid == null) {
+            if (title.isNotBlank()) {
+                localCourtIqStore.addCustomMission(title, category, targetCount)
+                _statusBanner.value = "New Fearless Challenge added!"
+            }
+            return
+        }
         viewModelScope.launch {
-            repository.addCustomMission(currentUserId, title, category, targetCount)
+            repository.addCustomMission(uid, title, category, targetCount)
                 .onSuccess { _statusBanner.value = "New Fearless Challenge added!" }
                 .onFailure { e -> _statusBanner.value = e.localizedMessage ?: "Failed to add challenge." }
         }
     }
 
     fun resetWeeklyMissions() {
+        val uid = currentUserId
+        if (uid == null) {
+            localCourtIqStore.resetWeeklyMissions()
+            _statusBanner.value = "Weekly Fearless Challenges reset for a new week!"
+            return
+        }
         val missions = (dashboardState.value as? UiState.Success)?.data?.missions ?: return
         viewModelScope.launch {
-            repository.resetWeeklyMissions(currentUserId, missions)
+            repository.resetWeeklyMissions(uid, missions)
                 .onSuccess { _statusBanner.value = "Weekly Fearless Challenges reset for a new week!" }
                 .onFailure { e -> _statusBanner.value = e.localizedMessage ?: "Failed to reset challenges." }
         }
     }
 
     fun addObservation(authorRole: AuthorRole, focusTag: String, note: String) {
+        val uid = currentUserId
+        if (uid == null) {
+            if (note.isNotBlank()) {
+                localCourtIqStore.addObservation(authorRole, focusTag, note)
+                _statusBanner.value = "Note saved to your Court IQ log."
+            }
+            return
+        }
         viewModelScope.launch {
-            repository.addObservation(currentUserId, authorRole, focusTag, note)
+            repository.addObservation(uid, authorRole, focusTag, note)
                 .onSuccess { _statusBanner.value = "Note saved to your Court IQ log." }
                 .onFailure { e -> _statusBanner.value = e.localizedMessage ?: "Failed to save note." }
         }
     }
 
     fun deleteObservation(observationId: String) {
+        val uid = currentUserId
+        if (uid == null) {
+            localCourtIqStore.deleteObservation(observationId)
+            return
+        }
         viewModelScope.launch {
-            repository.deleteObservation(currentUserId, observationId)
+            repository.deleteObservation(uid, observationId)
                 .onFailure { e -> _statusBanner.value = e.localizedMessage ?: "Failed to delete note." }
         }
     }
@@ -469,9 +608,31 @@ class CourtIqViewModel(
         leadership: Int,
         weakHand: Int,
     ) {
+        val uid = currentUserId
+        if (uid == null) {
+            localCourtIqStore.updateProfile(
+                playerName = playerName,
+                assignedFocus = assignedFocus,
+                weeklyGoal = weeklyGoal,
+                dailyAffirmation = dailyAffirmation,
+                fatigueLevel = fatigueLevel,
+                currentLevel = currentLevel,
+                tryoutReadiness = tryoutReadiness,
+                shooting = shooting,
+                ballHandling = ballHandling,
+                finishing = finishing,
+                defense = defense,
+                courtVision = courtVision,
+                confidence = confidence,
+                leadership = leadership,
+                weakHand = weakHand
+            )
+            _statusBanner.value = "Player ratings & coach targets saved!"
+            return
+        }
         viewModelScope.launch {
             repository.updateProfile(
-                userId = currentUserId,
+                userId = uid,
                 playerName = playerName,
                 assignedFocus = assignedFocus,
                 weeklyGoal = weeklyGoal,
@@ -502,9 +663,20 @@ class CourtIqViewModel(
         schoolLoad: SchoolLoad,
         completedThisWeek: Boolean,
     ) {
+        val uid = currentUserId
+        if (uid == null) {
+            localCourtIqStore.updateScheduleDay(
+                dayId = day.id,
+                focusTitle = focusTitle,
+                durationMinutes = durationMinutes,
+                schoolLoad = schoolLoad,
+                completedThisWeek = completedThisWeek
+            )
+            return
+        }
         viewModelScope.launch {
             repository.updateScheduleDay(
-                userId = currentUserId,
+                userId = uid,
                 dayId = day.id,
                 focusTitle = focusTitle,
                 durationMinutes = durationMinutes,
@@ -527,18 +699,23 @@ class CourtIqViewModel(
             observations = bundle?.observations ?: emptyList(),
         )
 
+        val priorHistory = _chatMessages.value
         val userMsg = CoachChatMessage(
             id = UUID.randomUUID().toString(),
             fromCoach = false,
             text = cleanQuestion
         )
-        _chatMessages.value = _chatMessages.value + userMsg
+        _chatMessages.value = priorHistory + userMsg
 
         viewModelScope.launch {
             _aiStreamState.value = AiStreamState.Loading
             var finalReply = ""
             try {
-                aiRepository.streamCoachResponse(cleanQuestion, contextSummary).collect { partial ->
+                aiRepository.streamCoachResponse(
+                    userMessage = cleanQuestion,
+                    playerContext = contextSummary,
+                    recentHistory = priorHistory
+                ).collect { partial ->
                     finalReply = partial
                     _aiStreamState.value = AiStreamState.Streaming(partial)
                 }

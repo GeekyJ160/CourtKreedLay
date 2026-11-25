@@ -80,6 +80,8 @@ import com.example.viewmodel.DashboardBundle
 fun TrainScreen(
     bundle: DashboardBundle,
     onStartWorkout: (WorkoutProgram) -> Unit,
+    onOpenShotLab: () -> Unit = {},
+    onOpenPlayerDna: () -> Unit = {},
 ) {
     val profile = bundle.profile ?: PlayerProfile()
     var selectedSection by remember { mutableIntStateOf(0) } // 0 = Player DNA, 1 = Evolution, 2 = Drill Labs
@@ -123,6 +125,27 @@ fun TrainScreen(
 
                 when (selectedSection) {
                     0 -> {
+                        val analytics = remember(bundle.shotZones) {
+                            aggregatePlayerDnaFromShotLab(bundle.shotZones)
+                        }
+                        PlayerDnaRadarSection(
+                            analytics = analytics,
+                            onOpenShotLab = onOpenShotLab,
+                        )
+                        Button(
+                            onClick = onOpenPlayerDna,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("train_open_full_dna_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = ArenaCyan,
+                                contentColor = ObsidianBg
+                            )
+                        ) {
+                            Text("Open Full Player DNA Profile & Strengths")
+                        }
+
                         Text(
                             text = "Study specific combo-guard habits, test your basketball IQ read, then immediately train her signature moves.",
                             style = MaterialTheme.typography.bodyMedium,

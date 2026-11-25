@@ -27,8 +27,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Timeline
@@ -39,10 +41,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.data.BasketballCurriculum
+import com.example.data.ProgressionSystem
+import com.example.data.TrainingBadge
 import com.example.data.WorkoutProgram
 import com.example.model.FatigueLevel
 import com.example.model.PlayerProfile
@@ -80,6 +86,7 @@ fun HomeScreen(
     onToggleScheduleComplete: (ScheduleDay) -> Unit,
     onOpenMindset: () -> Unit,
     onOpenShotLab: () -> Unit,
+    onOpenPlayerDna: () -> Unit = {},
 ) {
     Dashboard(
         bundle = bundle,
@@ -87,6 +94,7 @@ fun HomeScreen(
         onToggleScheduleComplete = onToggleScheduleComplete,
         onOpenMindset = onOpenMindset,
         onOpenShotLab = onOpenShotLab,
+        onOpenPlayerDna = onOpenPlayerDna,
     )
 }
 
@@ -97,14 +105,19 @@ fun Dashboard(
     onToggleScheduleComplete: (ScheduleDay) -> Unit,
     onOpenMindset: () -> Unit,
     onOpenShotLab: () -> Unit,
+    onOpenPlayerDna: () -> Unit = {},
 ) {
     val profile = bundle.profile ?: PlayerProfile()
+    val progression = remember(profile, bundle.shotZones) {
+        ProgressionSystem.evaluateProgression(profile, bundle.shotZones)
+    }
+    val resolvedLevel = progression.resolvedLevel
     val overall = profile.computeOverallRating()
     val levelMeta = BasketballCurriculum.evolutionLevels
-        .firstOrNull { it.levelNumber == profile.currentLevel }
+        .firstOrNull { it.levelNumber == resolvedLevel }
         ?: BasketballCurriculum.evolutionLevels.first()
     val nextLevelMeta = BasketballCurriculum.evolutionLevels
-        .firstOrNull { it.levelNumber == profile.currentLevel + 1 }
+        .firstOrNull { it.levelNumber == resolvedLevel + 1 }
 
     val dayOfWeekIndex = rememberTodayMondayIndex()
     val todaySchedule = bundle.schedule.firstOrNull { it.dayIndex == dayOfWeekIndex }
@@ -142,7 +155,7 @@ fun Dashboard(
                             )
                         ) {
                             Text(
-                                text = "LEVEL ${profile.currentLevel} · ${levelMeta.title.uppercase()}",
+                                text = "LEVEL $resolvedLevel · ${levelMeta.title.uppercase()}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = ArenaCyan,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -197,14 +210,22 @@ fun Dashboard(
 
                 // Current XP Summary View
                 CurrentXpSummaryCard(
-                    currentXp = profile.xp,
-                    currentLevel = profile.currentLevel,
+                    currentXp = progression.totalXp,
+                    shotLabXp = progression.shotLabXp,
+                    currentLevel = resolvedLevel,
                     levelTitle = levelMeta.title,
                     curLevelMinXp = levelMeta.minXp,
                     nextLevelTitle = nextLevelMeta?.title,
                     nextLevelMinXp = nextLevelMeta?.minXp,
                     streakDays = profile.streakDays,
                     workoutsLogged = bundle.workouts.size,
+                )
+
+                // Training Badges Showcase
+                TrainingBadgesCard(
+                    badges = progression.badges,
+                    unlockedCount = progression.unlockedCount,
+                    onOpenShotLab = onOpenShotLab,
                 )
 
                 // Player Stat Progress Bars (Shooting, Ball Handling, Finishing, etc.)
@@ -512,6 +533,53 @@ fun Dashboard(
                     }
                 }
 
+                // Player DNA Radar Quick Entry Card
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
+                    shape = MaterialTheme.shapes.large,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, ElectricVolt.copy(alpha = 0.45f), MaterialTheme.shapes.large)
+                        .clickable { onOpenPlayerDna() }
+                        .testTag("home_player_dna_card")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "PLAYER DNA RADAR",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = ElectricVolt
+                            )
+                            Text(
+                                text = "Strengths & Shooting Profile",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Visualize Shot Lab strengths & weaknesses across 6 court axes",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Surface(
+                            color = ElectricVolt,
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(
+                                text = "OPEN",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = ObsidianBg,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+
                 // Road to 7th Grade Timeline
                 Card(
                     colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
@@ -577,6 +645,7 @@ fun Dashboard(
 @Composable
 private fun CurrentXpSummaryCard(
     currentXp: Int,
+    shotLabXp: Int,
     currentLevel: Int,
     levelTitle: String,
     curLevelMinXp: Int,
@@ -625,6 +694,11 @@ private fun CurrentXpSummaryCard(
                         text = "$currentXp XP",
                         style = MaterialTheme.typography.headlineLarge,
                         color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Shot Lab XP: +$shotLabXp (+7/make · +2/miss)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ArenaCyan
                     )
                 }
                 Surface(
@@ -680,6 +754,137 @@ private fun CurrentXpSummaryCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = ArenaCyan
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrainingBadgesCard(
+    badges: List<TrainingBadge>,
+    unlockedCount: Int,
+    onOpenShotLab: () -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = ObsidianSurface),
+        shape = MaterialTheme.shapes.large,
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, MambaGold.copy(alpha = 0.45f), MaterialTheme.shapes.large)
+            .testTag("dashboard_badges_card")
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.EmojiEvents,
+                        contentDescription = null,
+                        tint = MambaGold,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "TRAINING BADGES",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Text(
+                    text = "$unlockedCount / ${badges.size} UNLOCKED",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = ElectricVolt
+                )
+            }
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.testTag("badges_horizontal_list")
+            ) {
+                items(badges, key = { it.id }) { badge ->
+                    val progress = (badge.progressCurrent.toFloat() / badge.progressTarget.coerceAtLeast(1).toFloat())
+                        .coerceIn(0f, 1f)
+                    Surface(
+                        color = if (badge.unlocked) ObsidianSurfaceHigh else ObsidianBg,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier
+                            .width(172.dp)
+                            .border(
+                                width = if (badge.unlocked) 1.5.dp else 1.dp,
+                                color = if (badge.unlocked) MambaGold else ObsidianBorder,
+                                shape = MaterialTheme.shapes.medium
+                            )
+                            .testTag("badge_card_${badge.id}")
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = badge.category,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (badge.unlocked) MambaGold else ArenaCyan
+                                )
+                                Icon(
+                                    imageVector = if (badge.unlocked) Icons.Default.EmojiEvents else Icons.Default.Lock,
+                                    contentDescription = if (badge.unlocked) "Unlocked" else "Locked",
+                                    tint = if (badge.unlocked) MambaGold else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Text(
+                                text = badge.title,
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (badge.unlocked) ElectricVolt else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = badge.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                minLines = 2,
+                                maxLines = 2
+                            )
+                            LinearProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(5.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = if (badge.unlocked) EmeraldSuccess else ArenaCyan,
+                                trackColor = ObsidianSurface
+                            )
+                            Text(
+                                text = if (badge.unlocked) "UNLOCKED" else "${badge.progressCurrent} / ${badge.progressTarget}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (badge.unlocked) EmeraldSuccess else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (unlockedCount < badges.size) {
+                OutlinedButton(
+                    onClick = onOpenShotLab,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("badges_log_shots_button")
+                ) {
+                    Text("Record Shots in Shot Lab to Unlock More Badges")
+                }
             }
         }
     }
