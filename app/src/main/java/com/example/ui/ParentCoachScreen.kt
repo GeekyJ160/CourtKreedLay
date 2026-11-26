@@ -85,6 +85,8 @@ fun ParentCoachScreen(
     onDeleteObservation: (String) -> Unit,
     onUpdateScheduleDay: (ScheduleDay, String, Int, SchoolLoad, Boolean) -> Unit,
     onSignOut: () -> Unit,
+    onRequestSignIn: (() -> Unit)? = null,
+    cloudStorageAvailable: Boolean = false,
 ) {
     val profile = bundle.profile ?: PlayerProfile()
 
@@ -474,6 +476,27 @@ fun ParentCoachScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
+                        if (onRequestSignIn != null) {
+                            OutlinedButton(
+                                onClick = onRequestSignIn,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("sign_in_button")
+                            ) {
+                                Text("Sign in with Google")
+                            }
+                            Text(
+                                text = "Your local profile stays separate and will not be merged automatically.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else if (!cloudStorageAvailable) {
+                            Text(
+                                text = "Cloud sign-in is not configured for this build. Your local profile is ready to use.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     } else {
                         Text(
                             text = "ACCOUNT & SYNC",

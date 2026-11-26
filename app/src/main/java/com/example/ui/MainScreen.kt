@@ -114,6 +114,8 @@ fun MainScreen(
     viewModel: CourtIqViewModel,
     userEmail: String?,
     onSignOut: () -> Unit,
+    onRequestSignIn: (() -> Unit)? = null,
+    cloudStorageAvailable: Boolean = false,
 ) {
     val dashboardState by viewModel.dashboardState.collectAsStateWithLifecycle()
     val selectedZoneId by viewModel.selectedZoneId.collectAsStateWithLifecycle()
@@ -321,7 +323,9 @@ fun MainScreen(
                                         onUpdateScheduleDay = { day, title, mins, load, done ->
                                             viewModel.updateScheduleDay(day, title, mins, load, done)
                                         },
-                                        onSignOut = onSignOut
+                                        onSignOut = onSignOut,
+                                        onRequestSignIn = onRequestSignIn,
+                                        cloudStorageAvailable = cloudStorageAvailable
                                     )
                                 }
                             }

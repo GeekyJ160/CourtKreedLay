@@ -70,6 +70,31 @@ android {
   }
 }
 
+val debugKeystore = layout.projectDirectory.file("debug.keystore").asFile.absolutePath
+val keytoolName = if (
+  System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
+) "keytool.exe" else "keytool"
+val ensureDebugKeystore = tasks.register<org.gradle.api.tasks.Exec>("ensureDebugKeystore") {
+  outputs.file(debugKeystore)
+  commandLine(
+    "${System.getProperty("java.home")}/bin/$keytoolName",
+    "-genkeypair",
+    "-keystore", debugKeystore,
+    "-storepass", "android",
+    "-alias", "androiddebugkey",
+    "-keypass", "android",
+    "-keyalg", "RSA",
+    "-keysize", "2048",
+    "-validity", "10000",
+    "-dname", "CN=Android Debug,O=Android,C=US",
+    "-storetype", "JKS",
+    "-noprompt"
+  )
+}
+tasks.matching { it.name == "validateSigningDebug" }.configureEach {
+  dependsOn(ensureDebugKeystore)
+}
+
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
 // to match the convention used in Web projects.
 secrets {
