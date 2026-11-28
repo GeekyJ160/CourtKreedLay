@@ -30,6 +30,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,12 +45,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.firebase.GoogleSignInButton
+import com.example.firebase.googleWebClientId
+import com.google.firebase.auth.FirebaseAuth
 import com.example.ui.theme.ArenaCyan
 import com.example.ui.theme.CourtOrange
 import com.example.ui.theme.ElectricVolt
@@ -60,8 +64,14 @@ import com.example.ui.theme.ObsidianSurface
 
 @Composable
 fun AuthScreen(
+    auth: FirebaseAuth,
     onAuthSuccess: () -> Unit,
+    onContinueLocal: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val googleSignInAvailable = remember(context) {
+        context.googleWebClientId() != null
+    }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Box(
@@ -198,7 +208,7 @@ fun AuthScreen(
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = "Private by default: no public profiles, no strangers, no public rankings — just your training data synced safely to your Google account.",
+                            text = "Private by default: no public profiles, strangers, or rankings. Choose on-device storage or an account-backed profile; the two stay separate.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -220,13 +230,29 @@ fun AuthScreen(
                     }
                 }
 
-                GoogleSignInButton(
-                    onAuthSuccess = {
-                        errorMessage = null
-                        onAuthSuccess()
-                    },
-                    onAuthError = { msg -> errorMessage = msg }
-                )
+                if (googleSignInAvailable) {
+                    GoogleSignInButton(
+                        auth = auth,
+                        onAuthSuccess = {
+                            errorMessage = null
+                            onAuthSuccess()
+                        },
+                        onAuthError = { msg -> errorMessage = msg }
+                    )
+                } else {
+                    Text(
+                        text = "Google Sign-In is not configured for this build. You can still use an on-device profile.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onContinueLocal,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Continue with on-device profile")
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
             }

@@ -67,6 +67,8 @@ fun CoachHubScreen(
     ) -> Unit,
     onUpdateScheduleDay: (ScheduleDay, String, Int, SchoolLoad, Boolean) -> Unit,
     onSignOut: () -> Unit,
+    onRequestSignIn: (() -> Unit)? = null,
+    cloudStorageAvailable: Boolean = false,
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -121,7 +123,9 @@ fun CoachHubScreen(
                         onAddObservation = onAddObservation,
                         onDeleteObservation = onDeleteObservation,
                         onUpdateScheduleDay = onUpdateScheduleDay,
-                        onSignOut = onSignOut
+                        onSignOut = onSignOut,
+                        onRequestSignIn = onRequestSignIn,
+                        cloudStorageAvailable = cloudStorageAvailable
                     )
                 }
             }

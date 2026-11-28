@@ -1,7 +1,5 @@
 package com.example.data
 
-import android.content.Context
-import com.example.R
 import com.example.firebase.OperationType
 import com.example.firebase.handleFirestoreError
 import com.example.model.AuthorRole
@@ -13,9 +11,7 @@ import com.example.model.ScheduleDay
 import com.example.model.SchoolLoad
 import com.example.model.ShotZoneStat
 import com.example.model.WorkoutLog
-import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.auth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -32,14 +28,8 @@ import kotlinx.coroutines.tasks.await
 
 class CourtIqRepository(
     private val db: FirebaseFirestore,
-    private val auth: FirebaseAuth = Firebase.auth,
+    private val auth: FirebaseAuth,
 ) {
-    constructor(context: Context) : this(
-        FirebaseFirestore.getInstance(
-            context.applicationContext.getString(R.string.firestore_database_id)
-        )
-    )
-
     private fun requireUserId(expectedUserId: String? = null): String {
         val uid = auth.currentUser?.uid
             ?: throw IllegalStateException("User must be signed in with Google before accessing Firestore.")

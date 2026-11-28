@@ -1,10 +1,13 @@
 package com.example.ui
 
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -20,42 +23,96 @@ import com.example.data.LocalShotLabStore
 import com.example.firebase.authStateFlow
 import com.example.firebase.signOut
 import com.example.viewmodel.CourtIqViewModel
-import com.google.firebase.Firebase
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.flow.flowOf
+
+private const val TAG = "CourtIqApp"
 
 @Composable
-fun CourtIqApp(auth: FirebaseAuth = Firebase.auth) {
+fun CourtIqApp(auth: FirebaseAuth? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val credentialManager = remember(context) { CredentialManager.create(context) }
-
-    val currentUser by auth.authStateFlow()
-        .collectAsStateWithLifecycle(initialValue = auth.currentUser)
-
-    val user = currentUser
-    key(user?.uid ?: "local") {
-        AuthenticatedCourtIqHost(
-            currentUserId = user?.uid,
-            userDisplayName = user?.displayName,
-            userEmail = user?.email,
-            onSignOut = {
-                signOut(
-                    credentialManager = credentialManager,
-                    scope = scope
+    val firebaseApp = remember(context) { FirebaseApp.getApps(context).firstOrNull() }
+    val activeAuth = remember(firebaseApp, auth) {
+        auth ?: firebaseApp?.let { FirebaseAuth.getInstance(it) }
+    }
+    val userFlow = remember(activeAuth) {
+        activeAuth?.authStateFlow() ?: flowOf(null)
+    }
+    val currentUser by userFlow.collectAsStateWithLifecycle(
+        initialValue = activeAuth?.currentUser
+    )
+    val repository = remember(firebaseApp, activeAuth, context) {
+        val app = firebaseApp
+        val firebaseAuth = activeAuth
+        if (app == null || firebaseAuth == null) {
+            null
+        } else {
+            runCatching {
+                CourtIqRepository(
+                    db = FirebaseFirestore.getInstance(
+                        app,
+                        context.getString(R.string.firestore_database_id)
+                    ),
+                    auth = firebaseAuth
                 )
-            }
+            }.onFailure { error ->
+                Log.w(TAG, "Firebase storage unavailable; using on-device storage.", error)
+            }.getOrNull()
+        }
+    }
+    val aiRepository = remember(firebaseApp) {
+        if (firebaseApp == null) null else CoachIqAiRepository()
+    }
+    var showAuthScreen by remember(activeAuth) { mutableStateOf(false) }
+    val appUser = currentUser.takeIf { repository != null }
+    val onSignOut: () -> Unit = {
+        activeAuth?.let { authInstance ->
+            signOut(
+                auth = authInstance,
+                credentialManager = credentialManager,
+                scope = scope
+            )
+        }
+    }
+    val onRequestSignIn: (() -> Unit)? =
+        if (activeAuth != null && repository != null && appUser == null) {
+            { showAuthScreen = true }
+        } else null
+
+    if (showAuthScreen && activeAuth != null) {
+        AuthScreen(
+            auth = activeAuth,
+            onAuthSuccess = { showAuthScreen = false },
+            onContinueLocal = { showAuthScreen = false }
         )
+    } else {
+        key(appUser?.uid ?: "local") {
+            AuthenticatedCourtIqHost(
+                repository = repository,
+                aiRepository = aiRepository,
+                currentUserId = appUser?.uid,
+                userDisplayName = appUser?.displayName,
+                userEmail = appUser?.email,
+                onSignOut = onSignOut,
+                onRequestSignIn = onRequestSignIn
+            )
+        }
     }
 }
 
 @Composable
 private fun AuthenticatedCourtIqHost(
+    repository: CourtIqRepository?,
+    aiRepository: CoachIqAiRepository?,
     currentUserId: String?,
     userDisplayName: String?,
     userEmail: String?,
     onSignOut: () -> Unit,
+    onRequestSignIn: (() -> Unit)?,
 ) {
     val viewModel: CourtIqViewModel = viewModel(
         key = currentUserId ?: "local",
@@ -64,11 +121,9 @@ private fun AuthenticatedCourtIqHost(
                 val app = checkNotNull(this[APPLICATION_KEY]) {
                     "APPLICATION_KEY missing from CreationExtras"
                 }
-                val databaseId = app.getString(R.string.firestore_database_id)
-                val db = FirebaseFirestore.getInstance(databaseId)
                 CourtIqViewModel(
-                    repository = CourtIqRepository(db),
-                    aiRepository = CoachIqAiRepository(),
+                    cloudRepository = repository,
+                    aiRepository = aiRepository,
                     localCourtIqStore = LocalCourtIqStore(app),
                     localShotLabStore = LocalShotLabStore(app, currentUserId ?: "local"),
                     currentUserId = currentUserId,
@@ -97,7 +152,9 @@ private fun AuthenticatedCourtIqHost(
         MainScreen(
             viewModel = viewModel,
             userEmail = userEmail,
-            onSignOut = onSignOut
+            onSignOut = onSignOut,
+            onRequestSignIn = onRequestSignIn,
+            cloudStorageAvailable = repository != null
         )
     }
 }

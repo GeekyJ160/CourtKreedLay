@@ -81,13 +81,19 @@ data class ActiveWorkoutState(
 )
 
 class CourtIqViewModel(
-    private val repository: CourtIqRepository,
-    private val aiRepository: CoachIqAiRepository,
+    cloudRepository: CourtIqRepository?,
+    private val aiRepository: CoachIqAiRepository?,
     private val localCourtIqStore: LocalCourtIqStore,
     private val localShotLabStore: LocalShotLabStore,
     private val currentUserId: String?,
     initialDisplayName: String?,
 ) : ViewModel() {
+
+    private val firestoreRepository = cloudRepository
+    private val repository: CourtIqRepository
+        get() = checkNotNull(firestoreRepository) {
+            "Cloud storage is unavailable. Continue using on-device storage."
+        }
 
     private fun <T> Flow<T>.unwrapFirestoreErrors(label: String): Flow<UiState<T>> =
         map<T, UiState<T>> { UiState.Success(it) }
@@ -691,8 +697,15 @@ class CourtIqViewModel(
     fun askCoachIq(question: String) {
         val cleanQuestion = question.trim()
         if (cleanQuestion.isEmpty()) return
+        val ai = aiRepository
+        if (ai == null) {
+            _aiStreamState.value = AiStreamState.Error(
+                "Coach IQ AI needs Firebase setup. Your training data is still saved on this device."
+            )
+            return
+        }
         val bundle = (dashboardState.value as? UiState.Success)?.data
-        val contextSummary = aiRepository.buildPlayerContextSummary(
+        val contextSummary = ai.buildPlayerContextSummary(
             profile = bundle?.profile,
             shotZones = bundle?.shotZones ?: emptyList(),
             missions = bundle?.missions ?: emptyList(),
@@ -711,7 +724,7 @@ class CourtIqViewModel(
             _aiStreamState.value = AiStreamState.Loading
             var finalReply = ""
             try {
-                aiRepository.streamCoachResponse(
+                ai.streamCoachResponse(
                     userMessage = cleanQuestion,
                     playerContext = contextSummary,
                     recentHistory = priorHistory
@@ -737,8 +750,15 @@ class CourtIqViewModel(
     }
 
     fun generatePersonalizedFocusPlan() {
+        val ai = aiRepository
+        if (ai == null) {
+            _focusPlanState.value = FocusPlanState.Error(
+                "Coach IQ AI needs Firebase setup. Your training data is still saved on this device."
+            )
+            return
+        }
         val bundle = (dashboardState.value as? UiState.Success)?.data
-        val contextSummary = aiRepository.buildPlayerContextSummary(
+        val contextSummary = ai.buildPlayerContextSummary(
             profile = bundle?.profile,
             shotZones = bundle?.shotZones ?: emptyList(),
             missions = bundle?.missions ?: emptyList(),
@@ -748,7 +768,7 @@ class CourtIqViewModel(
         viewModelScope.launch {
             _focusPlanState.value = FocusPlanState.Loading
             try {
-                val plan = aiRepository.generateStructuredFocusPlan(contextSummary)
+                val plan = ai.generateStructuredFocusPlan(contextSummary)
                 _focusPlanState.value = FocusPlanState.Success(plan)
             } catch (e: CancellationException) {
                 throw e
