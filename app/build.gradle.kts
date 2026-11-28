@@ -70,7 +70,7 @@ android {
   }
 }
 
-val debugKeystore = layout.projectDirectory.file("debug.keystore").asFile.absolutePath
+val debugKeystore = rootProject.layout.projectDirectory.file("debug.keystore").asFile.absolutePath
 val keytoolName = if (
   System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
 ) "keytool.exe" else "keytool"
